@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FlipCard Full</title>
+
+<style>
+  body { 
+    font-family: Arial; 
+    margin: 20px; 
+    background: #f4f4f4; 
+    transition: .3s; 
+  }
+  body.dark {
+    background: #111;
+    color: white;
+  }
+
+  #controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+
+  select, input, button {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+  }
+
+  button { background: black; color: white; cursor: pointer; }
+  body.dark button { background: #333; color:white; }
+
+  #cards { 
+    display: flex; 
+    flex-wrap: wrap; 
+    justify-content: center; 
+    gap: 15px; 
+  }
+
+  .card { 
+    width: 160px; 
+    height: 200px; 
+    perspective: 1000px; 
+    position: relative;
+  }
+
+  .inner {
+    width: 100%; 
+    height: 100%; 
+    position: relative; 
+    transition: transform 0.6s; 
+    transform-style: preserve-3d;
+  }
+
+  .card.flip .inner { transform: rotateY(180deg); }
+
+  .front, .back {
+    position: absolute; width: 100%; height: 100%;
+    display: flex; align-items:center; justify-content:center;
+    backface-visibility: hidden;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    font-size: 20px; padding:10px;
+    background:white;
+  }
+
+  body.dark .front, body.dark .back { background:#222; color:white; }
+
+  .back { transform: rotateY(180deg); }
+
+  .editBtns {
+    position: absolute; top: 5px; right: 5px;
+    display: flex; gap: 5px;
+  }
+
+  .miniBtn {
+    background: red; color:white; border:none; padding:3px 6px;
+    border-radius: 6px; font-size:12px;
+  }
+
+  #addForm {
+    margin:20px auto; max-width:350px;
+    background:white; padding:15px; border-radius:12px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+  }
+  body.dark #addForm { background:#222; }
+
+</style>
+</head>
+
+<body>
+
+<h2 style="text-align:center;">FlipCard FULL</h2>
+
+<!-- ÜST KONTROLLER -->
+<div id="controls">
+  <select id="listSelect" onchange="changeList()"></select>
+  <button onclick="newList()">Yeni Liste</button>
+  <button onclick="renameList()">Ad Değiştir</button>
+  <button onclick="deleteList()">Sil</button>
+  <button onclick="toggleDark()">🌙</button>
+</div>
+
+<!-- LISTE RENGI SEÇ -->
+<div style="text-align:center; margin-bottom:15px;">
+  Liste rengi: 
+  <input type="color" id="colorPicker" onchange="changeColor()">
+</div>
+
+<!-- KARTLAR -->
+<div id="cards"></div>
+
+<!-- KART EKLEME -->
+<div id="addForm">
+  <h3>Bu listeye yeni kart ekle</h3>
+  <input id="front" placeholder="Kelime" style="width:100%; margin-bottom:10px;">
+  <input id="back" placeholder="Anlam" style="width:100%; margin-bottom:10px;">
+  <button onclick="addCard()">Ekle</button>
+</div>
+
+
+<script>
+let data = JSON.parse(localStorage.getItem("flipDataFULL") || "{}");
+let currentList = null;
+
+function save(){
+  localStorage.setItem("flipDataFULL", JSON.stringify(data));
+}
+
+function init(){
+  const sel = document.getElementById("listSelect");
+  sel.innerHTML = "";
+
+  if(Object.keys(data).length === 0){
+    data["Genel"] = { color:"#ffe680", cards:[] };
+    currentList = "Genel";
+    save();
+  }
+
+  for(let name in data){
+    let opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    if(name === currentList) opt.selected = true;
+    sel.appendChild(opt);
+  }
+
+  if(!currentList) currentList = Object.keys(data)[0];
+
+  document.getElementById("colorPicker").value = data[currentList].color;
+
+  renderCards();
+}
+
+function changeList(){
+  currentList = document.getElementById("listSelect").value;
+  document.getElementById("colorPicker").value = data[currentList].color;
+  renderCards();
+}
+
+function newList(){
+  let name = prompt("Yeni liste adı:");
+  if(!name) return;
+
+  if(data[name]) return alert("Bu liste zaten var.");
+
+  data[name] = { color:"#ffe680", cards:[] };
+  currentList = name;
+  save();
+  init();
+}
+
+function renameList(){
+  let newName = prompt("Yeni ad:", currentList);
+  if(!newName) return;
+  if(data[newName]) return alert("Bu isim zaten var.");
+
+  data[newName] = data[currentList];
+  delete data[currentList];
+  currentList = newName;
+  save();
+  init();
+}
+
+function deleteList(){
+  if(!confirm("Bu liste silinsin mi?")) return;
+
+  delete data[currentList];
+
+  if(Object.keys(data).length === 0){
+    data["Genel"] = { color:"#ffe680", cards:[] };
+  }
+
+  currentList = Object.keys(data)[0];
+  save();
+  init();
+}
+
+function changeColor(){
+  let col = document.getElementById("colorPicker").value;
+  data[currentList].color = col;
+  save();
+  renderCards();
+}
+
+function renderCards(){
+  const box = document.getElementById("cards");
+  box.innerHTML = "";
+
+  let cards = data[currentList].cards;
+
+  cards.forEach((c, i)=>{
+    let el = document.createElement("div");
+    el.className = "card";
+
+    el.innerHTML = `
+      <div class="editBtns">
+        <button class="miniBtn" onclick="event.stopPropagation(); editCard(${i})">E</button>
+        <button class="miniBtn" onclick="event.stopPropagation(); deleteCard(${i})">X</button>
+      </div>
+
+      <div class="inner">
+        <div class="front" style="background:${data[currentList].color};">${c.front}</div>
+        <div class="back"  style="background:${data[currentList].color};">${c.back}</div>
+      </div>
+    `;
+
+    el.onclick = ()=> el.classList.toggle("flip");
+    box.appendChild(el);
+  });
+}
+
+function addCard(){
+  let f = front.value.trim();
+  let b = back.value.trim();
+  if(!f || !b) return alert("Boş bırakılamaz.");
+
+  data[currentList].cards.push({ front:f, back:b });
+  save();
+  front.value=""; back.value="";
+  renderCards();
+}
+
+function deleteCard(i){
+  if(!confirm("Kart silinsin mi?")) return;
+  data[currentList].cards.splice(i,1);
+  save();
+  renderCards();
+}
+
+function editCard(i){
+  let c = data[currentList].cards[i];
+  let nf = prompt("Ön yüz (İngilizce):", c.front);
+  let nb = prompt("Arka yüz (Türkçe):", c.back);
+  if(nf && nb){
+    c.front = nf;
+    c.back = nb;
+    save();
+    renderCards();
+  }
+}
+
+function toggleDark(){
+  document.body.classList.toggle("dark");
+}
+
+init();
+</script>
+
+</body>
+</html>
